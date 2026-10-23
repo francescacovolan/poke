@@ -1,0 +1,769 @@
+<title>Lega Pokescout</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Nunito:wght@500;700;800;900&display=swap">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+/* Layout: l'arena erbosa in alto per tutti; sotto, i comandi della branca oppure le carte della staff */
+:root{
+  --bg:#EFE7D9; --surface:#FFFCF6; --ink:#2A1D12; --muted:#6B5844; --line:#D8C4A4;
+  --bronze:#A8692F; --bronze-deep:#7A4A22; --sky:#2B6496; --ok:#2E7D4F; --wait:#9A6414;
+  --shadow:0 2px 0 rgba(122,74,34,.18);
+  --f-display:'Cinzel', 'Trajan Pro', Georgia, serif;
+  --f-body:'Nunito', 'Segoe UI', system-ui, sans-serif;
+  /* arena: mondo illustrato, colori fissi in entrambi i temi */
+  --grass-deep:#2C6526; --field-a:#93C657; --field-b:#79AE45; --chalk:rgba(255,250,235,.88); --paper:#FFFAEB; --paper-ink:#2A1D12;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#18120D; --surface:#241B14; --ink:#F2E8DA; --muted:#BFAB92; --line:#4A3A2B;
+  --bronze:#D39A62; --bronze-deep:#B5763F; --sky:#86B8E3; --ok:#72C595; --wait:#E3B55C;
+  --shadow:0 2px 0 rgba(0,0,0,.4); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#18120D; --surface:#241B14; --ink:#F2E8DA; --muted:#BFAB92; --line:#4A3A2B;
+  --bronze:#D39A62; --bronze-deep:#B5763F; --sky:#86B8E3; --ok:#72C595; --wait:#E3B55C;
+  --shadow:0 2px 0 rgba(0,0,0,.4); color-scheme:dark}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:.02em}
+h1{font-size:clamp(24px,3.6vw,36px)}
+h2{font-size:clamp(19px,2.4vw,24px)}
+h3{font-size:18px}
+p{margin:0}
+.muted{color:var(--muted)}
+.eyebrow{font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--bronze)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--line);padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.emblem{width:44px;height:44px;flex-shrink:0}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;padding:3px 10px;border-radius:999px;border:1.5px solid var(--line);color:var(--muted);background:var(--surface)}
+.pill.ok{color:var(--ok);border-color:currentColor}
+.pill.wait{color:var(--wait);border-color:currentColor}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+button{font:inherit;font-weight:800;cursor:pointer;border-radius:10px;border:2px solid var(--bronze-deep);background:var(--bronze);color:#FFF8EE;padding:10px 16px;min-height:44px;box-shadow:var(--shadow)}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line);box-shadow:none}
+button.quiet{background:var(--surface);color:var(--ink);border-color:var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+input[type=text],textarea,select{font:inherit;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;box-sizing:border-box}
+textarea{min-height:96px;resize:vertical}
+label{font-weight:800;font-size:14px}
+.panel{background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.between{justify-content:space-between}
+.banner{border:2px dashed var(--line);border-radius:12px;padding:10px 14px;font-size:14px;color:var(--muted)}
+
+/* ---------- ARENA ---------- */
+/* le texture d'erba sono disegnate una volta all'avvio (canvas) e passate come variabili */
+.arena{position:relative;border-radius:24px;padding:86px clamp(30px,5vw,62px) 80px;overflow:hidden;
+  background-color:#24501E;background-image:var(--tex-deep,none);background-size:320px 320px;
+  box-shadow:inset 0 0 50px rgba(5,20,3,.55), 0 3px 0 rgba(31,74,28,.35)}
+.gr{position:absolute;pointer-events:none;z-index:3}
+.gr.top{z-index:1;left:-30px;right:-30px;top:0;height:124px;background-image:var(--tex-fringe,none);background-repeat:repeat-x;background-size:600px 124px;transform-origin:50% 100%}
+.gr.bot{left:-30px;right:-30px;bottom:-8px;height:116px;background-image:var(--tex-fringe2,none);background-repeat:repeat-x;background-size:600px 116px;transform-origin:50% 100%}
+.gr.left,.gr.right{top:60px;bottom:60px;width:clamp(44px,6vw,84px);background-image:var(--tex-side,none);background-repeat:repeat-y;background-size:100% auto}
+.gr.left{left:0}
+.gr.right{right:0;transform:scaleX(-1)}
+@media (prefers-reduced-motion: no-preference){
+  .gr.top{animation:sway 3.8s ease-in-out infinite alternate}
+  .gr.bot{animation:sway 4.6s ease-in-out infinite alternate-reverse}
+  @keyframes sway{from{transform:skewX(-1.8deg)}to{transform:skewX(1.8deg)}}
+  .enter{animation:enter .7s cubic-bezier(.2,.8,.3,1.15) both}
+  @keyframes enter{from{transform:translateY(36px) scale(.86)}to{transform:none}}
+}
+.field{position:relative;z-index:2;border-radius:16px;border:5px solid rgba(250,248,236,.92);padding:50px clamp(14px,3vw,34px) 46px;display:flex;flex-direction:column;gap:18px;min-height:340px;
+  box-shadow:inset 0 0 36px rgba(15,35,8,.4), 0 0 0 2px rgba(15,35,8,.25);
+  background:
+   radial-gradient(circle at 50% 50%, transparent 0 66px, rgba(250,248,236,.6) 66px 71px, transparent 71px),
+   linear-gradient(to bottom, transparent calc(50% - 2.5px), rgba(250,248,236,.55) calc(50% - 2.5px) calc(50% + 2.5px), transparent calc(50% + 2.5px)),
+   repeating-linear-gradient(90deg, rgba(255,255,220,.08) 0 84px, rgba(0,25,0,.08) 84px 168px),
+   var(--tex-lawn, linear-gradient(#6E9F42,#6E9F42)) 0 0/256px 256px,
+   #6E9F42}
+.lvl{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;align-self:flex-start;background:var(--paper);color:var(--paper-ink);border:2px solid #7A4A22;border-radius:18px;padding:6px 16px 6px 8px;box-shadow:0 2px 0 rgba(42,29,18,.25)}
+.pips{display:flex;gap:4px}
+.pip{width:24px;height:24px;border-radius:50%;border:2px solid #7A4A22;background:#F3E6C8;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;color:#7A4A22}
+.pip.on{background:#D39A62;color:#2A1608}
+.lvl b{font-family:var(--f-display);font-size:17px;letter-spacing:.06em}
+.lvl span{font-size:14px;font-weight:800;color:#5a4630}
+.lurk{margin:auto;text-align:center;background:rgba(255,250,235,.93);color:var(--paper-ink);border:2px solid #7A4A22;border-radius:16px;padding:18px 24px;max-width:48ch;display:flex;flex-direction:column;gap:6px}
+.lurk h2{color:#2A1608}
+.lurk p{color:#5a4630;font-weight:700}
+.fighters{display:grid;gap:18px;grid-template-columns:repeat(var(--n),minmax(0,1fr));align-items:start}
+.fighter{display:flex;flex-direction:column;align-items:center;gap:12px;min-width:0}
+.fighters.solo .fighter{display:grid;grid-template-columns:minmax(0,270px) minmax(0,1fr);align-items:start;gap:20px}
+.stand{display:flex;flex-direction:column;align-items:center;width:100%}
+.stand::after{content:"";width:78%;max-width:220px;height:20px;margin-top:-6px;border-radius:50%;background:radial-gradient(ellipse at center, rgba(25,45,12,.5), transparent 70%)}
+@media (max-width:760px){.fighters{grid-template-columns:minmax(0,1fr)!important}.fighters.solo .fighter{grid-template-columns:minmax(0,1fr)}}
+.scene{margin:0;border:3px solid #7A4A22;border-radius:14px;overflow:hidden;background:var(--paper);color:var(--paper-ink);display:flex;flex-direction:column;width:100%;max-width:100%}
+.scene img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.scene figcaption{display:flex;flex-direction:column;gap:2px;padding:9px 13px;font-size:16px;font-weight:800}
+.scene figcaption .eyebrow{color:#A8692F}
+.squad{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.squad .lab{color:#fff;font-weight:900;font-size:13px;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.chip{background:rgba(255,250,235,.94);color:var(--paper-ink);border-radius:999px;padding:4px 12px;font-weight:800;font-size:14px;display:inline-flex;gap:6px;align-items:center;border:2px solid transparent;overflow-wrap:anywhere}
+.chip.done{border-color:#2E7D4F}.chip.done .dot{background:#2E7D4F}
+.chip.wait .dot{background:#C08A1E}
+
+/* carta mostro, stessa cornice bronzo delle carte stampate */
+.mcard{--c:#C2461F;--t:#F6DCCF;background:#B5763F;border-radius:16px;padding:7px;box-shadow:inset 0 0 0 2px #7A4A22, 0 4px 0 rgba(42,29,18,.25);max-width:250px;width:100%;box-sizing:border-box;color:#2A1608}
+.mcard .in{border:3px solid var(--c);border-radius:10px;background:var(--t);padding:7px;display:flex;flex-direction:column;gap:6px}
+.mcard .ban{display:flex;justify-content:space-between;align-items:center;gap:6px;background:#D39A62;border:2px solid #7A4A22;border-radius:8px;padding:3px 9px}
+.mcard .nm{font-family:var(--f-display);font-weight:800;font-size:17px;letter-spacing:.04em}
+.mcard .ps{font-weight:900;font-size:13px;color:#5A1E10;white-space:nowrap}
+.mcard .art{aspect-ratio:16/9;border:2px solid #7A4A22;border-radius:6px;overflow:hidden;background:#E9DCC3;max-width:100%}
+.mcard .art img{width:100%;height:100%;object-fit:cover;display:block}
+.mcard .box{background:#FBF5E6;border:1.5px solid #C9A46A;border-radius:8px;padding:4px 8px}
+.mcard .lbl{font-weight:900;font-size:13px;color:#4A1B10;display:flex;justify-content:space-between;gap:6px}
+.mcard .txt{font-size:13px;font-weight:700;color:#2b2218}
+.mcard .tipo{align-self:center;font-size:12px;font-weight:900;padding:0 12px;border-radius:999px;background:#F3E6C8;border:1.5px solid #7A4A22;color:#3a2410}
+
+/* ---------- mostri da far uscire ---------- */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.mpick{position:relative;background:var(--surface);border:3px solid var(--line);border-radius:14px;padding:6px;display:flex;flex-direction:column;gap:5px;cursor:pointer;text-align:left;color:var(--ink);box-shadow:none;min-height:0;font-weight:700;overflow:hidden}
+.mpick img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;display:block}
+.mpick .n{font-family:var(--f-display);font-size:15px;font-weight:800}
+.mpick .p{font-size:13px;color:var(--muted);font-weight:700}
+.mpick:hover{border-color:var(--bronze)}
+.mpick[aria-pressed="true"]{border-color:var(--sky);background:color-mix(in srgb, var(--sky) 12%, var(--surface))}
+.mpick.used img{filter:grayscale(.75) brightness(.92)}
+.mpick.used:hover img,.mpick.used[aria-pressed="true"] img{filter:none}
+.ribbon{position:absolute;top:14px;left:-34px;transform:rotate(-35deg);background:#7A4A22;color:#FFF3DF;font-size:11px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;padding:3px 40px;box-shadow:0 2px 0 rgba(0,0,0,.2)}
+.selbadge{position:absolute;top:10px;right:10px;background:var(--sky);color:#fff;border-radius:999px;min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:900}
+.picker[aria-disabled="true"] .mgrid{opacity:.5;pointer-events:none}
+
+/* ---------- carte capacità ---------- */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px}
+.cwrap{position:relative}
+.cardpick{position:relative;width:100%;padding:0;border:3px solid transparent;border-radius:12px;background:transparent;cursor:pointer;box-shadow:none;min-height:0;display:flex;flex-direction:column;gap:4px;color:var(--ink)}
+.cardpick img{width:100%;aspect-ratio:420/584;object-fit:cover;border-radius:9px;display:block}
+.cardpick .cn{font-size:13px;font-weight:800;text-align:center;line-height:1.2;padding-bottom:4px}
+.cardpick[aria-pressed="true"]{border-color:var(--sky);background:color-mix(in srgb, var(--sky) 12%, transparent)}
+.cardpick .badge{position:absolute;top:6px;right:6px;background:var(--sky);color:#fff;border-radius:999px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px}
+.zoom{position:absolute;top:6px;left:6px;width:32px;height:32px;min-height:0;padding:0;border-radius:50%;background:rgba(0,0,0,.6);border:0;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:none}
+
+/* ---------- staff e risposte ---------- */
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.team{border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:900;overflow-wrap:anywhere}
+.answers{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.answer{background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.answer .pair{display:grid;grid-template-columns:repeat(var(--k),minmax(0,1fr));gap:8px}
+.answer .pair img{width:100%;border-radius:8px;display:block}
+.why{font-size:16px;font-weight:600;overflow-wrap:anywhere;white-space:pre-wrap}
+.combo{font-family:var(--f-display);font-size:15px;font-weight:800;color:var(--bronze)}
+
+/* ---------- scoutdex ---------- */
+.dex{display:flex;flex-direction:column;gap:14px}
+.dexrow{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:12px}
+@media (max-width:600px){.dexrow{grid-template-columns:minmax(0,1fr)}}
+.dexmon{display:flex;flex-direction:column;gap:6px}
+.dexthumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:4px}
+.dexthumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
+.dexlist{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.dexlist li{border-top:1px solid var(--line);padding-top:8px;overflow-wrap:anywhere}
+.tally{display:flex;flex-direction:column;gap:6px}
+.bar{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 34px;gap:10px;align-items:center;font-size:14px;font-weight:700}
+.bar .track{height:12px;border-radius:6px;background:color-mix(in srgb, var(--line) 60%, transparent);overflow:hidden}
+.bar .fill{display:block;height:100%;background:var(--bronze);border-radius:6px}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---------- schede della branca ---------- */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line)}
+.tab{background:transparent;color:var(--muted);border:2px solid transparent;border-bottom:0;border-radius:10px 10px 0 0;box-shadow:none;margin-bottom:-2px;padding:10px 16px}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:0 2px 0 var(--surface)}
+.tablewrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:900}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos{display:inline-flex;width:32px;height:32px;border-radius:50%;align-items:center;justify-content:center;font-weight:900;border:2px solid var(--line);font-variant-numeric:tabular-nums}
+.pos.p1{background:#E2B547;border-color:#8C6A00;color:#2A1608}
+.pos.p2{background:#D4D0C8;border-color:#7E786E;color:#2A1608}
+.pos.p3{background:#D39A62;border-color:#7A4A22;color:#2A1608}
+.staffcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.tile{background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile .big{font-family:var(--f-display);font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.tile .lab{font-size:13px;font-weight:800;color:var(--muted)}
+.heat td.c{text-align:center;font-weight:900;font-variant-numeric:tabular-nums;min-width:40px;border:2px solid var(--surface)}
+.heat th.cardh{font-size:11px;text-align:center;min-width:64px;vertical-align:bottom;text-transform:none;letter-spacing:0}
+.heat td.mn{white-space:nowrap;font-weight:800}
+.zero{color:var(--muted);font-weight:500}
+.monrow{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:14px}
+@media (max-width:640px){.monrow{grid-template-columns:minmax(0,1fr)}}
+.monrow .thumb{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;display:block}
+.tagrow{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:13px;font-weight:800;padding:2px 9px;border-radius:999px;background:color-mix(in srgb, var(--bronze) 16%, var(--surface));border:1px solid var(--line)}
+.entries{display:flex;flex-direction:column;gap:12px;min-width:0}
+.entry{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.entry:first-child{border-top:0;padding-top:0}
+.minicards{display:flex;gap:6px;flex-wrap:wrap}
+.minicards img{width:56px;border-radius:6px;display:block}
+.chart{display:flex;flex-direction:column;gap:8px}
+.bar[title]{cursor:default}
+.bar:hover .fill{filter:brightness(1.12)}
+
+.invite{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center}
+@media (max-width:640px){.invite{grid-template-columns:minmax(0,1fr)}}
+.qrbox{background:#fff;border:2px solid var(--line);border-radius:12px;padding:8px;width:180px;max-width:100%}
+.qrbox svg{display:block;width:100%;height:auto}
+.qrbig{background:#fff;border-radius:18px;padding:18px;width:min(80vh,90vw);max-width:100%}
+.qrbig svg{display:block;width:100%;height:auto}
+.linkline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;overflow-wrap:anywhere;background:color-mix(in srgb, var(--line) 35%, var(--surface));padding:8px 10px;border-radius:8px}
+.home{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.choice{text-align:left;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)}
+.choice:hover{border-color:var(--bronze)}
+.overlay{position:fixed;inset:0;background:rgba(15,10,6,.8);display:flex;align-items:center;justify-content:center;padding:max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));z-index:50}
+.overlay img{max-height:86vh;max-width:100%;border-radius:14px}
+.overlay .close{position:absolute;top:max(14px, env(safe-area-inset-top, 0px));right:max(14px, env(safe-area-inset-right, 0px))}
+.confirm{border:2px solid var(--wait);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:max(18px, env(safe-area-inset-bottom, 0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:800;z-index:60}
+</style>
+
+<div class="wrap" id="app"></div>
+<div id="layer"></div>
+
+<script>
+(function(){
+const CARDS=[
+ {id:"ascolto",n:"Ascolto"},{id:"tecnica",n:"Conoscenza tecnica"},{id:"empatia",n:"Empatia"},
+ {id:"entusiasmo",n:"Entusiasmo"},{id:"esempio",n:"Essere d'esempio"},{id:"fiducia",n:"Fiducia"},
+ {id:"osservazione",n:"Osservazione"},{id:"pazienza",n:"Pazienza"},{id:"sorella",n:"Sorella maggiore"},
+ {id:"iniziativa",n:"Spirito di iniziativa"},{id:"umilta",n:"Umiltà"}];
+const M=[
+ {id:"litigon",n:"Litigon",tipo:"Fuoco",ps:70,c:"#C2461F",t:"#F6DCCF",pb:"Litigio",s:"Due guide non si parlano più dopo una discussione.",a:"Muso lungo",d:30,at:"Divide la squadriglia in due fazioni."},
+ {id:"lacrimuk",n:"Lacrimuk",tipo:"Acqua",ps:50,c:"#2470B3",t:"#D9E8F5",pb:"Tristezza",s:"Una guida è giù di morale e non dice perché.",a:"Nuvola grigia",d:20,at:"Spegne il sorriso e la voglia di esserci."},
+ {id:"piccolino",n:"Piccolino",tipo:"Ombra",ps:40,c:"#5A4A8C",t:"#E4DFF0",pb:"Non essere all'altezza",s:"Una guida pensa di non farcela e si tira indietro.",a:"Non ce la faccio",d:20,at:"Fa rinunciare prima ancora di provare."},
+ {id:"caoszilla",n:"Caoszilla",tipo:"Vento",ps:80,c:"#2A8F83",t:"#D6EEEA",pb:"Disorganizzazione",s:"Materiale sparso e nessuno sa chi fa cosa.",a:"Turbine",d:40,at:"Fa perdere tempo, materiale e pazienza."},
+ {id:"pigrotto",n:"Pigrotto",tipo:"Sonno",ps:60,c:"#66748C",t:"#E2E6ED",pb:"Non ho voglia",s:"Le guide arrivano svogliate a ogni attività.",a:"Sbadiglio",d:30,at:"Contagia tutta la squadriglia."},
+ {id:"clanplex",n:"Clanplex",tipo:"Roccia",ps:90,c:"#8A6A4F",t:"#ECE2D7",pb:"Gruppetti",s:"Gruppetti chiusi, e qualcuna resta fuori.",a:"Muro di pietra",d:40,at:"Lascia fuori chi è appena arrivata."},
+ {id:"chiacchieron",n:"Chiacchieron",tipo:"Veleno",ps:60,c:"#8E44AD",t:"#ECDCF2",pb:"Spettegolezzi",s:"Girano voci alle spalle di una guida.",a:"Sussurro",d:30,at:"Rovina la fiducia tra tutte."},
+ {id:"trucchetto",n:"Trucchetto",tipo:"Ombra",ps:50,c:"#5A4A8C",t:"#E4DFF0",pb:"Barare",s:"Una squadriglia bara pur di vincere un gioco.",a:"Scorciatoia",d:20,at:"Fa vincere la partita ma perdere la lealtà."},
+ {id:"nasolungo",n:"Nasolungo",tipo:"Psico",ps:50,c:"#C23C72",t:"#F6DCE6",pb:"Bugie",s:"Una guida mente per coprire un errore.",a:"Mezza verità",d:20,at:"Confonde le idee e incrina la fiducia."},
+ {id:"prepotor",n:"Prepotor",tipo:"Lotta",ps:80,c:"#A83232",t:"#F2D9D9",pb:"Fanno tutto le grandi",s:"Le grandi fanno tutto, le piccole guardano.",a:"Lascia, faccio io",d:40,at:"Toglie spazio a chi deve imparare."},
+ {id:"schermon",n:"Schermon",tipo:"Elettro",ps:70,c:"#B88A00",t:"#F8EDC6",pb:"Cellulare sequestrato",s:"Le ritirano il cellulare e si arrabbia.",a:"Batteria scarica",d:30,at:"Scatena proteste e musi lunghi."},
+ {id:"nascondino",n:"Nascondino",tipo:"Erba",ps:40,c:"#3F8F2A",t:"#DCEFD4",pb:"Vergogna dell'uniforme",s:"Non vuole farsi vedere in uniforme.",a:"Mimetismo",d:20,at:"Fa sparire il fazzolettone fuori sede."},
+ {id:"mammadrago",n:"Mammadrago",tipo:"Drago",ps:100,c:"#23527E",t:"#D6E1EE",pb:"Genitore che interviene",s:"Un genitore contesta la staff davanti a tutte.",a:"Ruggito",d:50,at:"Mette in dubbio le decisioni della staff."},
+ {id:"crollosauro",n:"Crollosauro",tipo:"Terra",ps:90,c:"#9C6B2E",t:"#F0E4D2",pb:"Cade il tavolo al campo",s:"La costruzione cede proprio a metà campo.",a:"Terremoto",d:40,at:"Butta giù giorni di lavoro e il morale."},
+ {id:"bernoccolo",n:"Bernoccolo",tipo:"Roccia",ps:60,c:"#8A6A4F",t:"#ECE2D7",pb:"Si fanno male",s:"Una guida si fa male durante un'attività.",a:"Inciampo",d:30,at:"Ferma tutto e spaventa chi guarda."},
+ {id:"gareggion",n:"Gareggion",tipo:"Fuoco",ps:70,c:"#C2461F",t:"#F6DCCF",pb:"Troppa competizione",s:"Vincere conta più che stare insieme.",a:"Sfida continua",d:30,at:"Trasforma ogni gioco in una guerra."}];
+const LEVELS={
+  1:{name:"Primo incontro",m:1,c:2,rule:"1 mostro · rispondete con 2 carte"},
+  2:{name:"Doppia sfida",m:2,c:3,rule:"2 mostri insieme · rispondete con 3 carte"},
+  3:{name:"Tripla sfida",m:3,c:3,rule:"3 mostri insieme · rispondete con 3 carte"}};
+const byId=o=>Object.fromEntries(o.map(x=>[x.id,x]));
+const MI=byId(M), CI=byId(CARDS);
+const EMBLEM='<svg class="emblem" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.3" fill="#F3E6C8" stroke="#7A4A22" stroke-width="1"></circle><path d="M12 2.5 L14.2 6.8 L18.8 5.2 L17.2 9.8 L21.5 12 L17.2 14.2 L18.8 18.8 L14.2 17.2 L12 21.5 L9.8 17.2 L5.2 18.8 L6.8 14.2 L2.5 12 L6.8 9.8 L5.2 5.2 L9.8 6.8 Z" fill="#B3261E"></path><path d="M12 6 C10.4 8.4 10.4 10.2 12 12.6 C13.6 10.2 13.6 8.4 12 6 Z M11.4 12.1 C9.6 10.1 8 11 8.4 12.6 C8.8 13.6 10.1 13.4 10.7 12.6 M12.6 12.1 C14.4 10.1 16 11 15.6 12.6 C15.2 13.6 13.9 13.4 13.3 12.6 M9.4 13.4 L14.6 13.4 M12 13.4 L12 17 M12 14.6 L10.8 17 M12 14.6 L13.2 17" fill="#F2C230" stroke="#F2C230" stroke-width=".9" stroke-linecap="round"></path></svg>';
+
+const fresh=()=>({phase:"attesa",level:1,round:0,monsters:[],rounds:{},teams:{},plays:{},updatedAt:Date.now()});
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+let game=Object.assign(fresh(),LS.get("ps2-game",{}));
+let role=LS.get("ps2-role",null);
+let teamId=LS.get("ps2-team",null);
+let ref=null, synced=false, docExists=false, dbTried=false;
+let mode="pending"; /* db: dentro Claude · p2p: online senza account · local: un solo dispositivo */
+const p2p={peer:null,conns:new Set(),host:null,state:"idle",tries:0};
+let markReady; const ready=new Promise(r=>markReady=r);
+const ui={sel:[],reason:"",msel:[],manualTeam:"",manualSel:[],manualReason:"",manualOpen:false,confirmReset:false,zoom:null,tab:"gioco",editing:false,lastRound:-1,newTeam:"",seenRound:null};
+
+const hs=location.hash.replace("#","");
+const hostFromHash=hs.startsWith("staff-")?hs.slice(6):null;
+const locked=hs==="staff"||!!hostFromHash;
+if(hs==="branca")role="branca"; else if(locked)role="staff";
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function merge(a,b){const o={...(a||{})};for(const k in b){const v=b[k];if(v&&typeof v==="object"&&!Array.isArray(v)&&o[k]&&typeof o[k]==="object"&&!Array.isArray(o[k]))o[k]=merge(o[k],v);else o[k]=v}return o}
+function toast(t){const d=document.createElement("div");d.className="toast";d.setAttribute("role","status");d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
+
+async function write(patch){
+  patch.updatedAt=Date.now();
+  game=merge(game,patch); LS.set("ps2-game",game); render();
+  if(mode==="p2p"){ if(role==="branca")broadcast(); else sendToHost(patch); return }
+  if(ref){
+    await ready;
+    try{ if(docExists) await ref.update(patch); else { await ref.set(game); docExists=true } }
+    catch(e){ toast("Non sono riuscita a salvare: riprova tra un attimo") }
+  }
+}
+async function replaceAll(g){
+  game=g; LS.set("ps2-game",game); render();
+  if(mode==="p2p"&&role==="branca"){broadcast();return}
+  if(ref){ try{ await ref.set(g); docExists=true }catch(e){ toast("Non sono riuscita a salvare: riprova tra un attimo") } }
+}
+
+/* ---------- stato derivato ---------- */
+const curRound=()=>game.rounds?.["r"+game.round]||null;
+const inPlay=()=>(game.phase==="gioca"||game.phase==="rivela")&&(game.monsters||[]).length>0;
+const shownLevel=()=>inPlay()?(curRound()?.level||game.level||1):(game.level||1);
+const needCards=()=>LEVELS[shownLevel()].c;
+const curPlays=()=>game.plays?.["r"+game.round]||{};
+const teamList=()=>Object.entries(game.teams||{}).filter(([,t])=>t&&t.name).sort((a,b)=>(a[1].at||0)-(b[1].at||0));
+const roundsList=()=>Object.entries(game.rounds||{}).filter(([,v])=>v&&Array.isArray(v.monsters)).map(([k,v])=>({n:+k.slice(1),...v})).sort((a,b)=>a.n-b.n);
+function usage(){const u={};roundsList().forEach(r=>r.monsters.forEach(id=>u[id]=(u[id]||0)+1));return u}
+const combo=cards=>(cards||[]).map(c=>CI[c]?.n||c).join(" + ");
+function togglePick(arr,id,max){const i=arr.indexOf(id);if(i>=0)arr.splice(i,1);else{if(arr.length>=max)arr.shift();arr.push(id)}}
+
+/* ---------- pezzi ---------- */
+function monsterCard(m){
+  if(!m)return"";
+  return `<article class="mcard" style="--c:${m.c};--t:${m.t}" aria-label="Carta mostro ${esc(m.n)}"><div class="in">
+   <div class="ban"><span class="nm">${esc(m.n.toUpperCase())}</span><span class="ps">PS ${m.ps}</span></div>
+   <div class="art"><img src="img/mostri/${m.id}.png" alt="${esc(m.n)}"></div>
+   <div class="box"><div class="lbl">Problema: ${esc(m.pb.toLowerCase())}</div></div>
+   <div class="tipo">TIPO: ${esc(m.tipo.toUpperCase())}</div>
+   <div class="box"><div class="lbl"><span>Attacco: ${esc(m.a)}</span><span style="color:#7A1F12">Danno ${m.d}</span></div><div class="txt">${esc(m.at)}</div></div>
+  </div></article>`;
+}
+function sceneFig(m){
+  return `<figure class="scene"><img src="img/scene/${m.id}.jpg" alt="La situazione: ${esc(m.s)}"><figcaption><span class="eyebrow">La situazione</span><span>${esc(m.s)}</span></figcaption></figure>`;
+}
+function arena(animate){
+  const lv=shownLevel(), L=LEVELS[lv];
+  const pips=[1,2,3].map(i=>`<span class="pip${i<=lv?" on":""}">${i}</span>`).join("");
+  const mons=(game.monsters||[]).map(id=>MI[id]).filter(Boolean);
+  let inner;
+  if(inPlay()&&mons.length){
+    inner=`<div class="fighters${mons.length===1?" solo":""}" style="--n:${mons.length}">${mons.map((m,i)=>`
+      <div class="fighter${animate?" enter":""}" style="animation-delay:${i*0.18}s"><div class="stand">${monsterCard(m)}</div>${sceneFig(m)}</div>`).join("")}</div>`;
+  } else if(game.phase==="fine"){
+    inner=`<div class="lurk"><h2>Partita conclusa</h2><p>Tutti i mostri sono tornati nell'erba alta. Guardate insieme la classifica e le risposte.</p></div>`;
+  } else {
+    inner=`<div class="lurk"><h2>L'erba alta si muove…</h2><p>${role==="branca"?`Scegliete sotto ${L.m===1?"il mostro":L.m+" mostri"} da far uscire nell'arena.`:`La branca sta per far uscire ${L.m===1?"un mostro":L.m+" mostri"}. Preparate le vostre ${L.c} carte.`}</p></div>`;
+  }
+  const teams=teamList(), plays=curPlays();
+  const squad = teams.length ? `<div class="squad"><span class="lab">Staff in campo</span>${teams.map(([id,t])=>{
+      if(game.phase==="gioca"&&inPlay()){const p=plays[id];return `<span class="chip ${p?"done":"wait"}"><span class="dot"></span>${esc(t.name)} · ${p?"carte giocate":"sta scegliendo"}</span>`}
+      return `<span class="chip">${esc(t.name)}</span>`}).join("")}</div>`:"";
+  return `<section class="arena" aria-label="Arena"><div class="gr top" aria-hidden="true"></div><div class="gr bot" aria-hidden="true"></div><div class="gr left" aria-hidden="true"></div><div class="gr right" aria-hidden="true"></div><div class="field">
+     <div class="lvl" aria-label="Livello ${lv} di 3"><span class="pips">${pips}</span><b>LIVELLO ${lv}</b><span>${esc(L.name)} · ${esc(L.rule)}</span></div>
+     ${inner}${squad}</div></section>`;
+}
+function cardGrid(sel,prefix,max){
+  return `<div class="cgrid" role="group" aria-label="Carte capacità, scegline ${max}">${CARDS.map(c=>{
+    const i=sel.indexOf(c.id);
+    return `<div class="cwrap"><button type="button" class="cardpick" id="${prefix}-${c.id}" data-pick="${prefix}" data-card="${c.id}" aria-pressed="${i>=0}">
+      <img src="img/carte/${c.id}.jpg" alt="Carta ${esc(c.n)}" loading="lazy"><span class="cn">${esc(c.n)}</span>${i>=0?`<span class="badge">${i+1}</span>`:""}</button>
+      <button type="button" class="zoom" data-zoom="${c.id}" aria-label="Ingrandisci ${esc(c.n)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l5 5M11 8v6M8 11h6"></path></svg></button></div>`}).join("")}</div>`;
+}
+function answers(){
+  if(game.phase!=="rivela"||!inPlay())return"";
+  const plays=curPlays(); const list=teamList().filter(([id])=>plays[id]);
+  const names=(game.monsters||[]).map(id=>MI[id]?.n).filter(Boolean).join(", ");
+  return `<section class="panel"><div class="eyebrow">Risposte rivelate</div><h2>Come avete affrontato ${esc(names)}?</h2>
+    <p class="muted">Ogni combinazione può funzionare: dipende dalla guida e dalla situazione. Cosa potrebbe fare un'aiuto in questo caso?</p>
+    ${list.length?`<div class="answers">${list.map(([id,t])=>{const p=plays[id];const k=(p.cards||[]).length||2;return `<article class="answer"><h3>${esc(t.name)}</h3>
+      <div class="combo">${esc(combo(p.cards))}</div>
+      <div class="pair" style="--k:${k}">${(p.cards||[]).map(c=>`<img src="img/carte/${esc(c)}.jpg" alt="Carta ${esc(CI[c]?.n||c)}">`).join("")}</div>
+      <p class="why">${esc(p.reason)}</p></article>`}).join("")}</div>`:`<p class="muted">Nessuna staff ha giocato carte in questo turno.</p>`}</section>`;
+}
+function header(sub){
+  const conn = mode==="p2p" ? p2pPill() : ref ? (synced?`<span class="pill ok"><span class="dot"></span>Dispositivi collegati</span>`:`<span class="pill wait"><span class="dot"></span>Collegamento…</span>`)
+                   : (dbTried?`<span class="pill"><span class="dot"></span>Solo questo dispositivo</span>`:`<span class="pill wait"><span class="dot"></span>Collegamento…</span>`);
+  return `<header class="top"><div class="brand">${EMBLEM}<div><div class="eyebrow">Lega Pokescout · ${esc(sub)}</div><h1>Arena</h1></div></div>
+   <div class="tools">${conn}${locked?"":`<button class="ghost" data-act="role">Cambia vista</button>`}</div></header>`;
+}
+
+/* ---------- viste ---------- */
+function viewHome(){
+  return `<header class="top"><div class="brand">${EMBLEM}<div><div class="eyebrow">Gioco per staff di riparto</div><h1>Lega Pokescout</h1></div></div></header>
+  <p class="muted" style="max-width:62ch">Tutte vedete la stessa arena. La branca fa uscire i mostri dall'erba alta, ogni staff risponde con le sue carte e scrive perché. Non ci sono risposte giuste o sbagliate: alla fine lo Scoutdex raccoglie tutto per la verifica.</p>
+  <div class="home">
+   <button class="choice" data-act="be-branca"><span class="eyebrow">Per i capi</span><h2>Branca</h2><span class="muted">Fate uscire i mostri, alzate il livello e rivelate le risposte.</span></button>
+   <button class="choice" data-act="be-staff"><span class="eyebrow">Per ogni staff</span><h2>Staff di riparto</h2><span class="muted">Scegliete le carte da giocare e scrivete la motivazione.</span></button>
+  </div>`;
+}
+
+function viewBranca(animate){
+  const L=LEVELS[game.level||1], teams=teamList(), plays=curPlays(), used=usage();
+  const playing=game.phase==="gioca"&&inPlay(), ended=game.phase==="fine";
+  const nPlayed=Object.keys(plays).length;
+  const offline = mode==="local" ? `<div class="banner">Gli altri dispositivi non sono collegati a questa arena: le staff devono aprire il link con un account Claude della vostra organizzazione.</div>`:"";
+  const tabs=[["gioco","Gioco"],["classifica","Classifica"],["mostri","Per mostro"],["stat","Statistiche"]];
+  const tabbar=`<nav class="tabs" role="tablist" aria-label="Sezioni della branca">${tabs.map(([k,l])=>`<button role="tab" class="tab" id="tab-${k}" data-tab="${k}" aria-selected="${ui.tab===k}">${l}</button>`).join("")}</nav>`;
+  if(ui.tab!=="gioco"){
+    const body = ui.tab==="classifica"?classifica(true): ui.tab==="mostri"?perMostro(): statistiche();
+    return header("Branca")+offline+arena(animate)+answers()+tabbar+body;
+  }
+  if(ended){
+    return header("Branca")+offline+arena(false)+tabbar+`<section class="panel"><div class="eyebrow">Fine partita</div><h2>La partita è chiusa</h2>
+      <p class="muted">Le staff vedono la classifica sul loro telefono. Guardate le schede Classifica, Per mostro e Statistiche per la riflessione finale.</p>
+      <div class="row"><button class="quiet" data-act="back">Riapri l'arena</button><button class="ghost" data-act="reset">Nuova partita</button></div>
+      ${ui.confirmReset?`<div class="confirm"><b>Cancellare tutte le risposte e le staff iscritte?</b><span class="muted">Copiate prima lo Scoutdex dalla scheda Per mostro, se vi serve.</span><div class="row"><button data-act="reset-yes">Sì, nuova partita</button><button class="ghost" data-act="reset-no">Annulla</button></div></div>`:""}</section>`;
+  }
+
+  const controls=`<section class="panel"><div class="row between"><div><div class="eyebrow">Comandi della branca</div><h2>${playing?"Le staff stanno scegliendo":"Prossimo turno: livello "+(game.level||1)}</h2></div>
+     <div class="row">
+      ${(game.level||1)<3?`<button data-act="levelup" ${playing?"disabled":""}>Alza al livello ${(game.level||1)+1}</button>`:`<span class="pill">Livello massimo raggiunto</span>`}
+      ${(game.level||1)>1&&!playing?`<button class="ghost" data-act="level1">Torna al livello 1</button>`:""}
+     </div></div>
+     ${playing?`<p class="muted">Il livello si può alzare dopo aver rivelato le risposte.</p>`:""}
+     <div class="row">
+      ${playing?`<button data-act="reveal" ${nPlayed?"":"disabled"}>Rivela le risposte (${nPlayed}/${teams.length})</button><button class="ghost" data-act="cancel">Rimanda nell'erba alta</button>`:""}
+      ${roundsList().length&&!playing?`<button class="quiet" data-act="end">Chiudi la partita</button>`:""}
+     </div></section>`;
+
+  const need=L.m;
+  const picker=`<section class="panel picker" aria-disabled="${playing}"><div class="row between"><div><div class="eyebrow">L'erba alta</div><h2>${need===1?"Scegli il mostro da far uscire":"Scegli "+need+" mostri da far uscire insieme"}</h2></div>
+      <div class="row"><button class="quiet" data-act="random" ${playing?"disabled":""}>A sorpresa</button><button data-act="send" ${!playing&&ui.msel.length===need?"":"disabled"}>Manda nell'arena (${ui.msel.length}/${need})</button></div></div>
+     ${playing?`<p class="muted">Rivelate le risposte prima di far uscire altri mostri.</p>`:""}
+     <div class="mgrid">${M.map(x=>{const i=ui.msel.indexOf(x.id),u=used[x.id]||0;
+       return `<button class="mpick${u?" used":""}" data-monster="${x.id}" aria-pressed="${i>=0}" aria-label="${esc(x.n)}, ${esc(x.pb)}${u?`, già uscito ${u} ${u===1?"volta":"volte"}`:""}">
+        <img src="img/mostri/${x.id}.png" alt=""><span class="n">${esc(x.n)}</span><span class="p">${esc(x.pb)}</span>
+        ${u?`<span class="ribbon">${u===1?"Già uscito":"Uscito "+u+" volte"}</span>`:""}${i>=0?`<span class="selbadge">${i+1}</span>`:""}</button>`}).join("")}</div>
+   </section>`;
+
+  const teamPanel=`<section class="panel"><div class="row between"><h2>Staff iscritte</h2><span class="muted">${teams.length} · dettagli nella scheda Classifica</span></div>
+     ${teams.length?`<div class="tagrow">${teams.map(([id,t])=>`<span class="tag">${esc(t.name)}</span>`).join("")}</div>`:`<p class="muted">Ogni staff inquadra il QR code e scrive il suo nome. Potete anche aggiungerle da qui.</p>`}
+     <form class="row" data-form="addteam"><label for="newteam" style="flex-basis:100%">Aggiungi una staff da qui</label><input type="text" id="newteam" maxlength="40" placeholder="Es. Riparto Stella Polare" style="flex:1;min-width:0" value="${esc(ui.newTeam)}"><button type="submit" class="quiet">Aggiungi</button></form></section>`;
+
+  return header("Branca")+offline+arena(animate)+answers()+tabbar+(mode==="p2p"?invitePanel():"")+controls+picker+teamPanel;
+}
+
+/* ---------- dati per classifica e statistiche ---------- */
+function fmt(s){if(s==null)return"–";const t=Math.round(s);return Math.floor(t/60)+":"+String(t%60).padStart(2,"0")}
+function computeStats(){
+  const rs=roundsList(), per={};
+  teamList().forEach(([id,t])=>per[id]={id,name:t.name,entries:[],fast:0});
+  rs.forEach(r=>{const p=game.plays?.["r"+r.n]||{}; let best=null;
+    Object.entries(p).forEach(([tid,x])=>{ if(!x||!Array.isArray(x.cards))return;
+      const secs=(x.at&&r.at)?Math.max(0,(x.at-r.at)/1000):null;
+      if(!per[tid])per[tid]={id:tid,name:game.teams?.[tid]?.name||"Staff",entries:[],fast:0};
+      per[tid].entries.push({n:r.n,level:r.level||1,monsters:r.monsters,cards:x.cards,reason:x.reason||"",secs});
+      if(secs!=null&&(!best||secs<best.secs))best={tid,secs};});
+    if(best&&Object.keys(p).length>1)per[best.tid].fast++;});
+  const list=Object.values(per).map(s=>{const ts=s.entries.map(e=>e.secs).filter(v=>v!=null);
+    return {...s,answered:s.entries.length,avg:ts.length?ts.reduce((a,b)=>a+b,0)/ts.length:null}});
+  list.sort((a,b)=>b.answered-a.answered||((a.avg??1e9)-(b.avg??1e9)));
+  return {rs,list};
+}
+function classifica(branca){
+  const {rs,list}=computeStats();
+  if(!list.length)return `<section class="panel"><h2>Classifica</h2><p class="muted">Nessuna staff iscritta. Quando le staff entrano nell'arena e giocano, qui compaiono turni giocati e tempi di risposta.</p></section>`;
+  const rank=`<section class="panel"><div class="eyebrow">Classifica</div><h2>Staff in gara</h2>
+    <p class="muted">Vince chi ha risposto a più turni; a parità, chi ha il tempo medio più basso. Il tempo va dall'uscita dei mostri all'ultima conferma delle carte.</p>
+    <div class="tablewrap"><table><thead><tr><th>Pos.</th><th>Staff</th><th class="num">Turni giocati</th><th class="num">Tempo medio</th><th class="num">Più veloce</th></tr></thead>
+    <tbody>${list.map((s,i)=>`<tr><td><span class="pos${i<3?" p"+(i+1):""}">${i+1}</span></td><td style="font-weight:900">${esc(s.name)}</td><td class="num">${s.answered}/${rs.length}</td><td class="num">${fmt(s.avg)}</td><td class="num">${s.fast} ${s.fast===1?"volta":"volte"}</td></tr>`).join("")}</tbody></table></div></section>`;
+  if(!branca)return rank;
+  const cards=`<div class="staffcards">${list.map((s,i)=>`<section class="panel"><div class="row between"><h3>${i+1}. ${esc(s.name)}</h3><span class="muted">media ${fmt(s.avg)}</span></div>
+     ${s.entries.length?`<div class="tablewrap"><table><thead><tr><th>Turno</th><th>Mostri</th><th>Carte giocate</th><th class="num">Tempo</th></tr></thead><tbody>
+      ${s.entries.map(e=>`<tr><td class="num" style="text-align:left">${e.n} <span class="muted">· L${e.level}</span></td><td>${esc(e.monsters.map(id=>MI[id]?.n).join(", "))}</td><td>${esc(combo(e.cards))}</td><td class="num">${fmt(e.secs)}</td></tr>`).join("")}
+     </tbody></table></div>`:`<p class="muted">Non ha ancora giocato.</p>`}</section>`).join("")}</div>`;
+  return rank+cards;
+}
+function monsterGroups(){
+  const {rs}=computeStats(), order=[], g={};
+  rs.forEach(r=>{const p=game.plays?.["r"+r.n]||{};
+    r.monsters.forEach(mid=>{ if(!g[mid]){g[mid]={times:0,entries:[]};order.push(mid)} g[mid].times++;
+      Object.entries(p).forEach(([tid,x])=>{ if(!x||!Array.isArray(x.cards))return;
+        g[mid].entries.push({n:r.n,level:r.level||1,others:r.monsters.filter(o=>o!==mid),team:game.teams?.[tid]?.name||"Staff",cards:x.cards,reason:x.reason||"",secs:(x.at&&r.at)?Math.max(0,(x.at-r.at)/1000):null})})})});
+  return order.map(id=>({id,...g[id]}));
+}
+function perMostro(){
+  const groups=monsterGroups();
+  if(!groups.length)return `<section class="panel"><h2>Per mostro</h2><p class="muted">Ancora nessun mostro uscito. Dopo ogni turno qui trovate, mostro per mostro, le carte di ogni staff e le loro motivazioni.</p></section>`;
+  return `<section class="panel"><div class="eyebrow">Per la riflessione finale</div><h2>Mostro per mostro</h2>
+     <p class="muted">Per ogni mostro, le carte che ogni staff ha giocato e il perché. Cosa può fare un'aiuto in questo caso?</p>
+     <div class="row"><button class="quiet" data-act="copy">Copia lo Scoutdex</button></div></section>
+   ${groups.map(gr=>{const m=MI[gr.id]; const cnt={}; gr.entries.forEach(e=>e.cards.forEach(c=>cnt[c]=(cnt[c]||0)+1));
+     const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+     return `<article class="monrow"><div style="display:flex;flex-direction:column;gap:8px"><img class="thumb" src="img/mostri/${gr.id}.png" alt=""><h3>${esc(m?.n)}</h3><span class="muted">${esc(m?.pb)} · uscito ${gr.times} ${gr.times===1?"volta":"volte"}</span>
+        ${top.length?`<div class="tagrow">${top.map(([c,v])=>`<span class="tag">${esc(CI[c]?.n||c)} ×${v}</span>`).join("")}</div>`:""}</div>
+      <div class="entries">${gr.entries.length?gr.entries.map(e=>`<div class="entry"><div class="row between"><b>${esc(e.team)}</b><span class="muted" style="font-size:14px">Turno ${e.n} · livello ${e.level}${e.others.length?" · insieme a "+esc(e.others.map(o=>MI[o]?.n).join(", ")):""} · ${fmt(e.secs)}</span></div>
+        <div class="minicards">${e.cards.map(c=>`<img src="img/carte/${esc(c)}.jpg" alt="Carta ${esc(CI[c]?.n||c)}" title="${esc(CI[c]?.n||c)}">`).join("")}</div>
+        <div class="combo">${esc(combo(e.cards))}</div><p class="why">${esc(e.reason)}</p></div>`).join(""):`<p class="muted">Nessuna staff ha risposto a questo mostro.</p>`}</div></article>`}).join("")}`;
+}
+function hbars(items,unit){
+  const max=Math.max(1,...items.map(i=>i.v));
+  return `<div class="chart">${items.map(i=>`<div class="bar" title="${esc(i.l)}: ${esc(i.d)}"><span>${esc(i.l)}</span><span class="track"><span class="fill" style="width:${Math.max(i.v>0?3:0,i.v/max*100)}%"></span></span><span class="v" style="min-width:42px">${esc(i.d)}</span></div>`).join("")}</div>`;
+}
+function statistiche(){
+  const {rs,list}=computeStats();
+  const plays=[]; rs.forEach(r=>Object.values(game.plays?.["r"+r.n]||{}).forEach(x=>{if(x&&Array.isArray(x.cards))plays.push({...x,r})}));
+  if(!plays.length)return `<section class="panel"><h2>Statistiche</h2><p class="muted">I grafici si riempiono man mano che le staff giocano: carte più usate, tempi di risposta, carte contro ogni mostro e coppie di carte più frequenti.</p></section>`;
+  const cardCnt={}; CARDS.forEach(c=>cardCnt[c.id]=0); plays.forEach(p=>p.cards.forEach(c=>{if(c in cardCnt)cardCnt[c]++}));
+  const topCard=CARDS.slice().sort((a,b)=>cardCnt[b.id]-cardCnt[a.id])[0];
+  const allT=plays.map(p=>(p.at&&p.r.at)?(p.at-p.r.at)/1000:null).filter(v=>v!=null);
+  const avgAll=allT.length?allT.reduce((a,b)=>a+b,0)/allT.length:null;
+  const tiles=`<div class="tiles"><div class="tile"><span class="lab">Turni giocati</span><span class="big">${rs.length}</span></div>
+    <div class="tile"><span class="lab">Risposte delle staff</span><span class="big">${plays.length}</span></div>
+    <div class="tile"><span class="lab">Tempo medio di risposta</span><span class="big">${fmt(avgAll)}</span></div>
+    <div class="tile"><span class="lab">Carta più giocata</span><span class="big" style="font-size:22px">${esc(topCard.n)}</span></div></div>`;
+  const c1=hbars(CARDS.slice().sort((a,b)=>cardCnt[b.id]-cardCnt[a.id]).map(c=>({l:c.n,v:cardCnt[c.id],d:String(cardCnt[c.id])})));
+  const timed=list.filter(s=>s.avg!=null).sort((a,b)=>a.avg-b.avg);
+  const c2=timed.length?hbars(timed.map(s=>({l:s.name,v:s.avg,d:fmt(s.avg)}))):`<p class="muted">Ancora nessun tempo registrato.</p>`;
+  const pairs={}; plays.forEach(p=>{const cs=[...new Set(p.cards)].sort(); for(let i=0;i<cs.length;i++)for(let j=i+1;j<cs.length;j++){const k=cs[i]+"|"+cs[j];pairs[k]=(pairs[k]||0)+1}});
+  const topPairs=Object.entries(pairs).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const c4=topPairs.length?hbars(topPairs.map(([k,v])=>({l:k.split("|").map(c=>CI[c]?.n||c).join(" + "),v,d:String(v)}))):"";
+  const groups=monsterGroups(); let hmax=1; const hm={};
+  groups.forEach(gr=>{hm[gr.id]={}; gr.entries.forEach(e=>e.cards.forEach(c=>{hm[gr.id][c]=(hm[gr.id][c]||0)+1; hmax=Math.max(hmax,hm[gr.id][c])}))});
+  const heat=`<div class="tablewrap"><table class="heat"><thead><tr><th>Mostro</th>${CARDS.map(c=>`<th class="cardh">${esc(c.n)}</th>`).join("")}</tr></thead><tbody>
+    ${groups.map(gr=>`<tr><td class="mn">${esc(MI[gr.id]?.n)}</td>${CARDS.map(c=>{const v=hm[gr.id][c.id]||0; const pct=v?Math.round(14+46*v/hmax):0;
+      return `<td class="c" title="${esc(MI[gr.id]?.n)} · ${esc(c.n)}: ${v}" style="background:${v?`color-mix(in srgb, var(--bronze) ${pct}%, var(--surface))`:"transparent"}">${v?v:`<span class="zero">·</span>`}</td>`}).join("")}</tr>`).join("")}
+    </tbody></table></div>`;
+  return tiles+`<section class="panel"><h3>Carte più giocate</h3><p class="muted">Quante volte ogni carta è stata scelta, in tutti i turni.</p>${c1}</section>
+    <section class="panel"><h3>Tempo medio di risposta per staff</h3><p class="muted">Minuti e secondi dall'uscita dei mostri alla conferma delle carte. Più corta la barra, più veloce la staff.</p>${c2}</section>
+    <section class="panel"><h3>Carte giocate contro ogni mostro</h3><p class="muted">Più è scuro il riquadro, più volte quella carta è stata usata contro quel mostro.</p>${heat}</section>
+    ${c4?`<section class="panel"><h3>Carte giocate più spesso insieme</h3><p class="muted">Le coppie di carte che le staff hanno scelto più volte nella stessa risposta.</p>${c4}</section>`:""}`;
+}
+
+function viewStaff(animate){
+  const me=teamId&&game.teams?.[teamId];
+  const blk=staffBlock(); if(blk)return header("Staff")+blk;
+  if(mode==="local"){
+    return header("Staff")+`<section class="panel"><h2>Questo dispositivo non è collegato all'arena</h2>
+      <p class="muted">Il collegamento funziona solo per chi accede a Claude con un account della stessa organizzazione di chi ha creato il gioco. Chiedete ai capi di aiutarvi a entrare con l'account giusto.</p>
+      ${locked?"":`<div class="row"><button data-act="role">Torna all'inizio</button></div>`}</section>`;
+  }
+  if(!me){
+    return header("Staff")+arena(false)+`<section class="panel"><h2>Come si chiama la vostra staff?</h2>
+      <form class="row" data-form="join"><label for="tname" style="flex-basis:100%">Nome della staff o del riparto</label><input type="text" id="tname" maxlength="40" placeholder="Es. Riparto Stella Polare" style="flex:1;min-width:0" value="${esc(ui.newTeam)}"><button type="submit">Entra nell'arena</button></form></section>`;
+  }
+  if(game.phase==="fine")return header(me.name)+arena(false)+classifica(false)+`<section class="panel"><h2>Grazie, ${esc(me.name)}</h2><p class="muted">La partita è finita. Ora la riflessione la fate tutte insieme.</p></section>`;
+  const mine=curPlays()[teamId], k=needCards();
+  if(game.round!==ui.lastRound){ui.lastRound=game.round; ui.sel=mine?mine.cards.slice():[]; ui.reason=mine?mine.reason:""; ui.editing=false}
+  let below;
+  if(game.phase==="gioca"&&inPlay()){
+    if(mine&&!ui.editing){
+      below=`<section class="panel"><span class="pill ok" style="align-self:flex-start"><span class="dot"></span>Carte giocate</span>
+        <div class="combo">${esc(combo(mine.cards))}</div><p class="why">${esc(mine.reason)}</p>
+        <p class="muted">Aspettate che la branca riveli le risposte. Fino ad allora potete cambiare.</p><div class="row"><button class="quiet" data-act="edit">Cambia carte</button></div></section>`;
+    } else {
+      const names=(game.monsters||[]).map(id=>MI[id]?.n).filter(Boolean).join(", ");
+      below=`<section class="panel"><div class="eyebrow">Le vostre carte</div><h2>Scegliete ${k} carte contro ${esc(names)}</h2>
+        ${cardGrid(ui.sel,"me",k)}
+        <label for="reason">Perché queste carte insieme?</label><textarea id="reason" maxlength="600" placeholder="Scrivete in poche righe come le usereste">${esc(ui.reason)}</textarea>
+        <div class="row"><button data-act="play" ${ui.sel.length===k&&ui.reason.trim()?"":"disabled"}>Gioca le carte</button><span class="muted">${ui.sel.length}/${k} carte</span></div></section>`;
+    }
+  } else if(game.phase==="rivela"&&inPlay()){
+    below="";
+  } else {
+    const L=LEVELS[game.level||1];
+    below=`<section class="panel"><h2>Pronte, ${esc(me.name)}</h2><p class="muted">Quando i mostri escono dall'erba alta, qui sotto compaiono le carte da giocare. In questo livello ne userete ${L.c}.</p>
+      <div class="row"><button class="ghost" data-act="leave">Non siamo noi, cambia staff</button></div></section>`;
+  }
+  return header(me.name)+arena(animate)+answers()+below;
+}
+
+
+/* ---------- render ---------- */
+const app=document.getElementById("app");
+function render(){
+  const a=document.activeElement; const fid=a&&a.id; let s0,s1; try{s0=a.selectionStart;s1=a.selectionEnd}catch(e){}
+  const animate=inPlay()&&ui.seenRound!==null&&ui.seenRound!==game.round;
+  app.innerHTML = !role?viewHome(): role==="branca"?viewBranca(animate):viewStaff(animate);
+  ui.seenRound=game.round;
+  if(fid){const el=document.getElementById(fid); if(el){el.focus({preventScroll:true}); try{if(s0!=null)el.setSelectionRange(s0,s1)}catch(e){}}}
+  document.getElementById("layer").innerHTML = ui.bigqr&&mode==="p2p"?`<div class="overlay" data-act="unzoom" role="dialog" aria-label="QR code per le staff"><div class="qrbig">${qrSvg(staffLink())}</div><button class="close quiet" data-act="unzoom">Chiudi</button></div>`: ui.zoom?`<div class="overlay" data-act="unzoom" role="dialog" aria-label="Carta ingrandita"><img src="img/carte/${esc(ui.zoom)}.jpg" alt="Carta ${esc(CI[ui.zoom]?.n)}"><button class="close quiet" data-act="unzoom">Chiudi</button></div>`:"";
+}
+
+/* ---------- azioni ---------- */
+function startRound(ids){
+  const r=(game.round||0)+1, lv=game.level||1;
+  write({phase:"gioca",round:r,monsters:ids.slice(),rounds:{["r"+r]:{monsters:ids.slice(),level:lv,at:Date.now()}}});
+  ui.msel=[];ui.manualSel=[];ui.manualReason="";ui.manualTeam="";
+  window.scrollTo({top:0,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+}
+function surprise(){
+  const n=LEVELS[game.level||1].m, u=usage();
+  const pool=M.map(x=>({id:x.id,u:u[x.id]||0,r:Math.random()})).sort((a,b)=>a.u-b.u||a.r-b.r);
+  startRound(pool.slice(0,n).map(x=>x.id));
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-act],[data-monster],[data-pick],[data-zoom],[data-tab]"); if(!t)return;
+  if(t.dataset.tab){ui.tab=t.dataset.tab;ui.confirmReset=false;render();return}
+  if(t.dataset.zoom){ui.zoom=t.dataset.zoom;render();return}
+  if(t.dataset.pick){const k=needCards(); togglePick(t.dataset.pick==="me"?ui.sel:ui.manualSel,t.dataset.card,k); render(); return}
+  if(t.dataset.monster){ if(game.phase==="gioca"&&inPlay())return; togglePick(ui.msel,t.dataset.monster,LEVELS[game.level||1].m); render(); return}
+  switch(t.dataset.act){
+    case "be-branca": role="branca"; LS.set("ps2-role",role); if(mode==="p2p")startHost(); render(); break;
+    case "be-staff": role="staff"; LS.set("ps2-role",role); if(mode==="p2p")startStaff(); render(); break;
+    case "bigqr": ui.bigqr=true; render(); break;
+    case "copylink": { const l=staffLink(); try{navigator.clipboard.writeText(l).then(()=>toast("Link copiato"),()=>fallback(l))}catch(e){fallback(l)} break }
+    case "newhost": LS.set("ps2-hostid",null); p2p.tries=0; startHost(); break;
+    case "role": if(locked)break; role=null; LS.set("ps2-role",null); render(); break;
+    case "send": if(ui.msel.length===LEVELS[game.level||1].m)startRound(ui.msel); break;
+    case "random": surprise(); break;
+    case "levelup": { const lv=Math.min(3,(game.level||1)+1); ui.msel=[]; write({level:lv,phase:"attesa",monsters:[]}); toast("Livello "+lv+": "+LEVELS[lv].name); break }
+    case "level1": ui.msel=[]; write({level:1,phase:"attesa",monsters:[]}); break;
+    case "reveal": write({phase:"rivela"}); break;
+    case "cancel": { const r=game.round||1; write({phase:"attesa",monsters:[],round:Math.max(0,r-1),rounds:{["r"+r]:null},plays:{["r"+r]:null}}); break }
+    case "end": ui.tab="classifica"; write({phase:"fine",monsters:[]}); break;
+    case "back": ui.tab="gioco"; write({phase:"attesa",monsters:[]}); break;
+    case "reset": ui.confirmReset=true; render(); break;
+    case "reset-no": ui.confirmReset=false; render(); break;
+    case "reset-yes": ui.confirmReset=false; ui.msel=[]; replaceAll(fresh()); break;
+    case "unzoom": if(e.target===t||t.classList.contains("close")){ui.zoom=null;ui.bigqr=false;render()} break;
+    case "edit": ui.editing=true; render(); break;
+    case "leave": teamId=null; LS.set("ps2-team",null); render(); break;
+    case "play": { const k=needCards(); if(ui.sel.length===k&&ui.reason.trim()){ui.editing=false; write({plays:{["r"+game.round]:{[teamId]:{cards:ui.sel.slice(),reason:ui.reason.trim().slice(0,600),at:Date.now()}}}}); toast("Carte giocate")} break }
+    case "manual-send": { const k=needCards(); if(ui.manualTeam&&ui.manualSel.length===k&&ui.manualReason.trim()){const nm=game.teams[ui.manualTeam]?.name; write({plays:{["r"+game.round]:{[ui.manualTeam]:{cards:ui.manualSel.slice(),reason:ui.manualReason.trim().slice(0,600),at:Date.now()}}}}); toast("Carte registrate per "+(nm||"la staff")); ui.manualSel=[];ui.manualReason="";ui.manualTeam="";render()} break }
+    case "copy": copyDex(); break;
+  }
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&(ui.zoom||ui.bigqr)){ui.zoom=null;ui.bigqr=false;render()}});
+document.addEventListener("input",e=>{
+  const id=e.target.id, k=needCards();
+  if(id==="reason"){ui.reason=e.target.value; const b=app.querySelector('[data-act="play"]'); if(b)b.disabled=!(ui.sel.length===k&&ui.reason.trim())}
+  if(id==="mreason"){ui.manualReason=e.target.value; const b=app.querySelector('[data-act="manual-send"]'); if(b)b.disabled=!(ui.manualTeam&&ui.manualSel.length===k&&ui.manualReason.trim())}
+  if(id==="newteam"||id==="tname")ui.newTeam=e.target.value;
+});
+document.addEventListener("toggle",e=>{if(e.target.id==="manual")ui.manualOpen=e.target.open},true);
+document.addEventListener("change",e=>{if(e.target.id==="mteam"){ui.manualTeam=e.target.value;render()}});
+document.addEventListener("submit",e=>{
+  e.preventDefault(); const f=e.target.dataset.form; const name=ui.newTeam.trim().slice(0,40); if(!name)return;
+  const id="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  ui.newTeam="";
+  if(f==="join"){teamId=id;LS.set("ps2-team",id)}
+  write({teams:{[id]:{name,at:Date.now()}}});
+});
+function copyDex(){
+  const lines=["SCOUTDEX - Lega Pokescout",""];
+  monsterGroups().forEach(gr=>{const m=MI[gr.id]; lines.push(`${m?.n} (${m?.pb})`);
+    gr.entries.forEach(e=>lines.push(`- ${e.team} (turno ${e.n}, ${fmt(e.secs)}): ${combo(e.cards)}. ${e.reason}`)); lines.push("")});
+  lines.push("CLASSIFICA"); computeStats().list.forEach((s,i)=>lines.push(`${i+1}. ${s.name} - turni giocati ${s.answered}, tempo medio ${fmt(s.avg)}`));
+  const txt=lines.join("\n");
+  try{navigator.clipboard.writeText(txt).then(()=>toast("Scoutdex copiato"),()=>fallback(txt))}catch(e){fallback(txt)}
+}
+function fallback(txt){ui.zoom=null; const L=document.getElementById("layer"); L.innerHTML=`<div class="overlay" role="dialog" aria-label="Testo dello Scoutdex"><div class="panel" style="max-width:700px;width:100%"><label for="dextxt">Seleziona e copia il testo</label><textarea id="dextxt" style="min-height:50vh">${esc(txt)}</textarea><button class="quiet" data-act="unzoom">Chiudi</button></div></div>`; const ta=document.getElementById("dextxt"); ta.focus(); ta.select()}
+
+/* ---------- online senza account: collegamento diretto ---------- */
+function peerOpts(){const o=LS.get("ps2-peerserver",null);return o&&typeof o==="object"?{...o,debug:0}:{debug:0}}
+function staffLink(){return location.origin+location.pathname+"#staff-"+p2p.hostId}
+function p2pPill(){
+  if(role==="branca"){
+    if(p2p.state==="open")return `<span class="pill ok"><span class="dot"></span>Arena aperta · ${p2p.conns.size} ${p2p.conns.size===1?"dispositivo collegato":"dispositivi collegati"}</span>`;
+    if(p2p.state==="busy")return `<span class="pill wait"><span class="dot"></span>Arena aperta altrove</span>`;
+    return `<span class="pill wait"><span class="dot"></span>Apertura dell'arena…</span>`;
+  }
+  return p2p.state==="connected"?`<span class="pill ok"><span class="dot"></span>Collegate all'arena</span>`:`<span class="pill wait"><span class="dot"></span>Ricerca dell'arena…</span>`;
+}
+function qrSvg(text){try{const q=qrcode(0,"M");q.addData(text);q.make();return q.createSvgTag({cellSize:6,margin:2,scalable:true})}catch(e){return ""}}
+function invitePanel(){
+  const link=staffLink();
+  const busy=p2p.state==="busy"?`<div class="confirm"><b>Questa arena risulta già aperta in un'altra finestra o su un altro dispositivo.</b><span class="muted">Chiudete l'altra finestra e aspettate qualche secondo, oppure aprite una nuova arena: in quel caso cambia anche il QR code.</span><div class="row"><button class="quiet" data-act="newhost">Apri una nuova arena</button></div></div>`:"";
+  return `<section class="panel"><div class="eyebrow">Invito per le staff</div>
+    <div class="invite"><button class="qrbox" data-act="bigqr" aria-label="Mostra il QR code in grande" style="padding:8px;border-color:var(--line);background:#fff;box-shadow:none;min-height:0">${qrSvg(link)}</button>
+     <div style="display:flex;flex-direction:column;gap:10px;min-width:0"><h2>Inquadrate il codice per entrare</h2>
+      <p class="muted">Ogni staff inquadra il QR code con un telefono e scrive il suo nome. Non serve nessun account. Tenete aperta questa pagina per tutta la partita: è lei che tiene l'arena.</p>
+      <div class="linkline">${esc(link)}</div>
+      <div class="row"><button class="quiet" data-act="bigqr">Mostra il QR in grande</button><button class="ghost" data-act="copylink">Copia il link</button></div></div></div>${busy}</section>`;
+}
+function staffBlock(){
+  if(mode!=="p2p")return null;
+  if(!p2p.host)return `<section class="panel"><h2>Inquadrate il QR code dei capi</h2><p class="muted">Per entrare nell'arena serve il codice che i capi mostrano sul loro schermo.</p></section>`;
+  if(p2p.state!=="connected")return `<section class="panel"><h2>Ricerca dell'arena…</h2><p class="muted">${p2p.state==="nohost"?"L'arena dei capi non risponde: controllate che la loro pagina sia aperta. Riprovo da sola.":"Un attimo, ci stiamo collegando all'arena dei capi."}</p></section>`;
+  return null;
+}
+function broadcast(){const msg={type:"state",game};p2p.conns.forEach(c=>{try{if(c.open)c.send(msg)}catch(e){}})}
+function sendToHost(patch){try{if(p2p.conn&&p2p.conn.open)p2p.conn.send({type:"patch",patch});else toast("Non collegate all'arena: riprovate tra un attimo")}catch(e){toast("Non collegate all'arena: riprovate tra un attimo")}}
+function hostApply(patch){
+  if(!patch||typeof patch!=="object")return;
+  const clean={};
+  if(patch.teams&&typeof patch.teams==="object"){clean.teams={};for(const[id,t]of Object.entries(patch.teams)){if(t&&typeof t.name==="string"&&/^[A-Za-z0-9]{1,40}$/.test(id))clean.teams[id]={name:t.name.slice(0,40),at:Date.now()}}}
+  if(patch.plays&&typeof patch.plays==="object"&&game.phase==="gioca"){const rk="r"+game.round, rp=patch.plays[rk];
+    if(rp&&typeof rp==="object"){clean.plays={[rk]:{}};const need=needCards();
+      for(const[tid,x]of Object.entries(rp)){if(x&&Array.isArray(x.cards)&&x.cards.length===need&&x.cards.every(c=>CI[c])&&game.teams?.[tid])clean.plays[rk][tid]={cards:x.cards.slice(0,3),reason:String(x.reason||"").slice(0,600),at:Date.now()}}}}
+  if(clean.teams||clean.plays){clean.updatedAt=Date.now();game=merge(game,clean);LS.set("ps2-game",game);render();broadcast()}
+}
+function hostId(){let id=LS.get("ps2-hostid",null);if(!id){id="pokescout-"+Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-3);LS.set("ps2-hostid",id)}return id}
+function startHost(){
+  try{p2p.peer&&p2p.peer.destroy()}catch(e){}
+  p2p.hostId=hostId(); p2p.state="starting"; render();
+  const peer=new Peer(p2p.hostId,peerOpts()); p2p.peer=peer;
+  peer.on("open",()=>{p2p.state="open";p2p.tries=0;render()});
+  peer.on("connection",c=>{
+    c.on("open",()=>{p2p.conns.add(c);try{c.send({type:"state",game})}catch(e){}render()});
+    c.on("data",d=>{if(d&&d.type==="patch")hostApply(d.patch)});
+    const drop=()=>{p2p.conns.delete(c);render()}; c.on("close",drop); c.on("error",drop);
+  });
+  peer.on("disconnected",()=>{if(p2p.state==="open"){p2p.state="starting";render()} setTimeout(()=>{try{peer.reconnect()}catch(e){}},2000)});
+  peer.on("error",e=>{
+    if(e.type==="unavailable-id"){ if(++p2p.tries<6){setTimeout(startHost,5000)} else {p2p.state="busy";render()} return }
+    if(["network","server-error","socket-error","socket-closed"].includes(e.type)){p2p.state="starting";render();setTimeout(()=>{try{peer.reconnect()}catch(_){startHost()}},3000)}
+  });
+}
+function startStaff(){
+  p2p.host=hostFromHash; if(!p2p.host){render();return}
+  const peer=new Peer(undefined,peerOpts()); p2p.peer=peer;
+  const connect=()=>{
+    if(p2p.conn&&p2p.conn.open)return;
+    const c=peer.connect(p2p.host,{reliable:true}); p2p.conn=c;
+    c.on("open",()=>{p2p.state="connected";render()});
+    c.on("data",d=>{if(d&&d.type==="state"&&d.game){game=merge(fresh(),d.game);LS.set("ps2-game",game);render()}});
+    c.on("close",()=>{p2p.state="lost";render();setTimeout(connect,3000)});
+  };
+  peer.on("open",connect);
+  peer.on("disconnected",()=>setTimeout(()=>{try{peer.reconnect()}catch(e){}},2000));
+  peer.on("error",e=>{ if(e.type==="peer-unavailable"){p2p.state="nohost";render();setTimeout(connect,4000)} else if(p2p.state!=="connected"){setTimeout(connect,4000)} });
+}
+
+/* ---------- erba disegnata ---------- */
+function makeGrass(){
+  const R=(a,b)=>a+Math.random()*(b-a);
+  function blade(c,x,y,h,w,lean,hue,sat,li){
+    const tx=x+lean, cx=x+lean*0.3;
+    c.beginPath(); c.moveTo(x-w/2,y);
+    c.quadraticCurveTo(cx-w*0.25,y-h*0.55,tx,y-h);
+    c.quadraticCurveTo(cx+w*0.35,y-h*0.5,x+w/2,y); c.closePath();
+    const g=c.createLinearGradient(0,y,0,y-h);
+    g.addColorStop(0,`hsl(${hue},${sat}%,${li*0.42}%)`);
+    g.addColorStop(0.55,`hsl(${hue},${sat}%,${li}%)`);
+    g.addColorStop(1,`hsl(${hue-8},${sat+6}%,${Math.min(70,li*1.2)}%)`);
+    c.fillStyle=g; c.fill();
+  }
+  function canvas(w,h){const c=document.createElement("canvas");c.width=w;c.height=h;return c}
+  function strip(W,H,n){
+    const cv=canvas(W,H), c=cv.getContext("2d"), list=[];
+    for(let i=0;i<n;i++){const front=i/n; list.push({x:R(0,W),h:R(H*0.35,H*0.98)*(0.75+front*0.25),w:R(3,7.5),lean:R(-26,26),
+      hue:R(78,108),sat:R(34,58),li:14+front*30+R(-4,6),y:H+R(0,8)})}
+    list.forEach(b=>{[b.x,b.x-W,b.x+W].forEach(x=>{if(x>-40&&x<W+40)blade(c,x,b.y,b.h,b.w,b.lean,b.hue,b.sat,b.li)})});
+    return cv;
+  }
+  const out={};
+  const deep=canvas(320,320), d=deep.getContext("2d");
+  d.fillStyle="#1D4217"; d.fillRect(0,0,320,320);
+  const bl=[]; for(let i=0;i<1500;i++)bl.push({x:R(0,320),y:R(0,320),h:R(26,74),w:R(2.5,6),lean:R(-16,16),hue:R(80,108),sat:R(30,55),li:R(18,40)});
+  bl.sort((a,b)=>a.y-b.y).forEach(b=>{for(const ox of [-320,0,320])for(const oy of [0,320]){const x=b.x+ox,y=b.y+oy;if(x>-30&&x<350&&y-b.h<320)blade(d,x,y,b.h,b.w,b.lean,b.hue,b.sat,b.li)}});
+  out.deep=deep;
+  out.fringe=strip(600,124,820);
+  out.fringe2=strip(600,116,760);
+  const s=strip(400,100,520), side=canvas(100,400), sc=side.getContext("2d");
+  sc.translate(100,0); sc.rotate(Math.PI/2); sc.drawImage(s,0,0); out.side=side;
+  const lawn=canvas(256,256), l=lawn.getContext("2d");
+  l.fillStyle="#6A9C40"; l.fillRect(0,0,256,256);
+  for(let i=0;i<7000;i++){const x=R(0,256),y=R(0,256),len=R(3,9),a=R(-0.6,0.6)-Math.PI/2;
+    l.strokeStyle=`hsla(${R(78,110)},${R(32,55)}%,${R(26,50)}%,${R(.45,.85)})`; l.lineWidth=R(0.8,1.6); l.lineCap="round";
+    for(const ox of [-256,0,256])for(const oy of [-256,0,256]){l.beginPath();l.moveTo(x+ox,y+oy);l.lineTo(x+ox+Math.cos(a)*len,y+oy+Math.sin(a)*len);l.stroke()}}
+  out.lawn=lawn;
+  const root=document.documentElement.style;
+  for(const [k,cv] of Object.entries(out)){try{root.setProperty("--tex-"+k,`url(${cv.toDataURL("image/png")})`)}catch(e){}}
+}
+setTimeout(()=>{try{makeGrass()}catch(e){}},0);
+
+render();
+
+/* ---------- collegamento tra dispositivi ---------- */
+(async()=>{
+  let db=null;
+  const inClaude=!!(window.claude&&window.claude.use);
+  if(inClaude){ try{ db=await window.claude.use("db") }catch(e){ db=null } }
+  dbTried=true;
+  if(!db){
+    if(!inClaude&&window.Peer){ mode="p2p"; if(role==="branca")startHost(); else if(role==="staff")startStaff(); render(); return }
+    mode="local"; render(); return
+  }
+  mode="db";
+  ref=db.doc("partite/arena");
+  ref.onSnapshot(s=>{
+    synced=true; docExists=s.exists;
+    if(s.exists){ game=merge(fresh(), JSON.parse(JSON.stringify(s.data()))); LS.set("ps2-game",game) }
+    else if(role==="branca" && (roundsList().length || teamList().length)){ ref.set(game).then(()=>{docExists=true}).catch(()=>{}) }
+    markReady();
+    render();
+  }, ()=>{ ref=null; render(); });
+  render();
+})();
+})();
+</script>
