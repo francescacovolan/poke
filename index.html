@@ -211,6 +211,13 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 .qrbig{background:#fff;border-radius:18px;padding:18px;width:min(80vh,90vw);max-width:100%}
 .qrbig svg{display:block;width:100%;height:auto}
 .linkline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;overflow-wrap:anywhere;background:color-mix(in srgb, var(--line) 35%, var(--surface));padding:8px 10px;border-radius:8px}
+button.danger{background:#B3261E;border-color:#7F1914;color:#fff}
+.recall{position:fixed;inset:0;z-index:40;background:#C62828;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;
+  padding:max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px))}
+.recall h1{font-family:var(--f-display);font-size:clamp(34px,9vw,64px);color:#fff;line-height:1.1}
+.recall p{font-size:clamp(20px,5vw,30px);font-weight:900;max-width:22ch}
+.recall .sub{font-size:16px;font-weight:700;opacity:.9}
+@media (prefers-reduced-motion: no-preference){.recall{animation:pulse 1.6s ease-in-out infinite alternate}@keyframes pulse{from{background:#C62828}to{background:#9E1B1B}}}
 .home{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
 .choice{text-align:left;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)}
 .choice:hover{border-color:var(--bronze)}
@@ -329,7 +336,7 @@ function arena(animate){
     inner=`<div class="fighters${mons.length===1?" solo":""}" style="--n:${mons.length}">${mons.map((m,i)=>`
       <div class="fighter${animate?" enter":""}" style="animation-delay:${i*0.18}s"><div class="stand">${monsterCard(m)}</div>${sceneFig(m)}</div>`).join("")}</div>`;
   } else if(game.phase==="fine"){
-    inner=`<div class="lurk"><h2>Partita conclusa</h2><p>Tutti i mostri sono tornati nell'erba alta. Guardate insieme la classifica e le risposte.</p></div>`;
+    inner=`<div class="lurk" style="border-color:#B3261E"><h2 style="color:#B3261E">Fine del gioco</h2><p>I telefoni delle staff sono diventati rossi: stanno rientrando nell'area comune. Guardate insieme classifica, risposte e statistiche.</p></div>`;
   } else {
     inner=`<div class="lurk"><h2>L'erba alta si muove…</h2><p>${role==="branca"?`Scegliete sotto ${L.m===1?"il mostro":L.m+" mostri"} da far uscire nell'arena.`:`La branca sta per far uscire ${L.m===1?"un mostro":L.m+" mostri"}. Preparate le vostre ${L.c} carte.`}</p></div>`;
   }
@@ -388,8 +395,8 @@ function viewBranca(animate){
     return header("Branca")+offline+arena(animate)+answers()+tabbar+body;
   }
   if(ended){
-    return header("Branca")+offline+arena(false)+tabbar+`<section class="panel"><div class="eyebrow">Fine partita</div><h2>La partita è chiusa</h2>
-      <p class="muted">Le staff vedono la classifica sul loro telefono. Guardate le schede Classifica, Per mostro e Statistiche per la riflessione finale.</p>
+    return header("Branca")+offline+arena(false)+tabbar+`<section class="panel"><div class="eyebrow">Fine partita</div><h2>Le staff sono state richiamate</h2>
+      <p class="muted">Sui loro telefoni c'è la schermata rossa "Fine del gioco". Per la riflessione usate le schede Classifica, Per mostro e Statistiche. "Riapri l'arena" toglie la schermata rossa e fa riprendere il gioco.</p>
       <div class="row"><button class="quiet" data-act="back">Riapri l'arena</button><button class="ghost" data-act="reset">Nuova partita</button></div>
       ${ui.confirmReset?`<div class="confirm"><b>Cancellare tutte le risposte e le staff iscritte?</b><span class="muted">Copiate prima lo Scoutdex dalla scheda Per mostro, se vi serve.</span><div class="row"><button data-act="reset-yes">Sì, nuova partita</button><button class="ghost" data-act="reset-no">Annulla</button></div></div>`:""}</section>`;
   }
@@ -402,7 +409,7 @@ function viewBranca(animate){
      ${playing?`<p class="muted">Il livello si può alzare dopo aver rivelato le risposte.</p>`:""}
      <div class="row">
       ${playing?`<button data-act="reveal" ${nPlayed?"":"disabled"}>Rivela le risposte (${nPlayed}/${teams.length})</button><button class="ghost" data-act="cancel">Rimanda nell'erba alta</button>`:""}
-      ${roundsList().length&&!playing?`<button class="quiet" data-act="end">Chiudi la partita</button>`:""}
+      <button class="danger" data-act="end">Fine del gioco: richiama le staff</button>
       <button class="ghost" data-act="reset">Azzera l'arena</button>
      </div>
      ${ui.confirmReset?`<div class="confirm"><b>Azzerare l'arena?</b><span class="muted">Si cancellano staff iscritte, turni, risposte e classifica, e si torna al livello 1. Il QR code resta lo stesso. Se vi serve, copiate prima lo Scoutdex dalla scheda Per mostro.</span><div class="row"><button data-act="reset-yes">Sì, azzera</button><button class="ghost" data-act="reset-no">Annulla</button></div></div>`:""}
@@ -524,7 +531,9 @@ function viewStaff(animate){
     return header("Staff")+arena(false)+`<section class="panel"><h2>Come si chiama la vostra staff?</h2>
       <form class="row" data-form="join"><label for="tname" style="flex-basis:100%">Nome della staff o del riparto</label><input type="text" id="tname" maxlength="40" placeholder="Es. Riparto Stella Polare" style="flex:1;min-width:0" value="${esc(ui.newTeam)}"><button type="submit">Entra nell'arena</button></form></section>`;
   }
-  if(game.phase==="fine")return header(me.name)+arena(false)+classifica(false)+`<section class="panel"><h2>Grazie, ${esc(me.name)}</h2><p class="muted">La partita è finita. Ora la riflessione la fate tutte insieme.</p></section>`;
+  if(game.phase==="fine"){ if(!ui.buzzed){ui.buzzed=true;try{navigator.vibrate&&navigator.vibrate([400,200,400,200,400])}catch(e){}}
+    return `<div class="recall" role="alert">${EMBLEM}<h1>Fine del gioco!</h1><p>Tornate subito nell'area comune</p><span class="sub">${esc(me.name)}, portate con voi le carte del nido.</span></div>`; }
+  ui.buzzed=false;
   const mine=curPlays()[teamId], k=needCards();
   if(game.round!==ui.lastRound){ui.lastRound=game.round; ui.sel=mine?mine.cards.slice():[]; ui.reason=mine?mine.reason:""; ui.editing=false}
   let below;
