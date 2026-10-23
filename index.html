@@ -271,7 +271,8 @@ const ui={sel:[],reason:"",msel:[],manualTeam:"",manualSel:[],manualReason:"",ma
 const hs=location.hash.replace("#","");
 const hostFromHash=hs.startsWith("staff-")?hs.slice(6):null;
 const locked=hs==="staff"||!!hostFromHash;
-if(hs==="branca")role="branca"; else if(locked)role="staff";
+if(hs.startsWith("branca-")){const code=hs.slice(7);if(/^[a-z0-9-]{3,40}$/.test(code))LS.set("ps2-hostid",code.startsWith("pokescout-")?code:"pokescout-"+code)}
+if(hs==="branca"||hs.startsWith("branca-"))role="branca"; else if(locked)role="staff";
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function merge(a,b){const o={...(a||{})};for(const k in b){const v=b[k];if(v&&typeof v==="object"&&!Array.isArray(v)&&o[k]&&typeof o[k]==="object"&&!Array.isArray(o[k]))o[k]=merge(o[k],v);else o[k]=v}return o}
@@ -642,12 +643,13 @@ function p2pPill(){
 function qrSvg(text){try{const q=qrcode(0,"M");q.addData(text);q.make();return q.createSvgTag({cellSize:6,margin:2,scalable:true})}catch(e){return ""}}
 function invitePanel(){
   const link=staffLink();
-  const busy=p2p.state==="busy"?`<div class="confirm"><b>Questa arena risulta già aperta in un'altra finestra o su un altro dispositivo.</b><span class="muted">Chiudete l'altra finestra e aspettate qualche secondo, oppure aprite una nuova arena: in quel caso cambia anche il QR code.</span><div class="row"><button class="quiet" data-act="newhost">Apri una nuova arena</button></div></div>`:"";
+  const busy=p2p.state==="busy"?`<div class="confirm"><b>Questa arena risulta già aperta in un'altra finestra o su un altro dispositivo.</b><span class="muted">Chiudete l'altra finestra e aspettate qualche secondo. Aprire una nuova arena cambia il QR code: quello già stampato non funzionerebbe più.</span><div class="row"><button class="quiet" data-act="newhost">Apri una nuova arena</button></div></div>`:"";
   return `<section class="panel"><div class="eyebrow">Invito per le staff</div>
     <div class="invite"><button class="qrbox" data-act="bigqr" aria-label="Mostra il QR code in grande" style="padding:8px;border-color:var(--line);background:#fff;box-shadow:none;min-height:0">${qrSvg(link)}</button>
      <div style="display:flex;flex-direction:column;gap:10px;min-width:0"><h2>Inquadrate il codice per entrare</h2>
       <p class="muted">Ogni staff inquadra il QR code con un telefono e scrive il suo nome. Non serve nessun account. Tenete aperta questa pagina per tutta la partita: è lei che tiene l'arena.</p>
       <div class="linkline">${esc(link)}</div>
+      <p class="muted" style="font-size:14px">Link dei capi per aprire questa stessa arena da qualsiasi dispositivo: <span style="overflow-wrap:anywhere">${esc(location.origin+location.pathname+"#branca-"+p2p.hostId.replace(/^pokescout-/,""))}</span></p>
       <div class="row"><button class="quiet" data-act="bigqr">Mostra il QR in grande</button><button class="ghost" data-act="copylink">Copia il link</button></div></div></div>${busy}</section>`;
 }
 function staffBlock(){
