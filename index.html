@@ -403,7 +403,10 @@ function viewBranca(animate){
      <div class="row">
       ${playing?`<button data-act="reveal" ${nPlayed?"":"disabled"}>Rivela le risposte (${nPlayed}/${teams.length})</button><button class="ghost" data-act="cancel">Rimanda nell'erba alta</button>`:""}
       ${roundsList().length&&!playing?`<button class="quiet" data-act="end">Chiudi la partita</button>`:""}
-     </div></section>`;
+      <button class="ghost" data-act="reset">Azzera l'arena</button>
+     </div>
+     ${ui.confirmReset?`<div class="confirm"><b>Azzerare l'arena?</b><span class="muted">Si cancellano staff iscritte, turni, risposte e classifica, e si torna al livello 1. Il QR code resta lo stesso. Se vi serve, copiate prima lo Scoutdex dalla scheda Per mostro.</span><div class="row"><button data-act="reset-yes">Sì, azzera</button><button class="ghost" data-act="reset-no">Annulla</button></div></div>`:""}
+    </section>`;
 
   const need=L.m;
   const picker=`<section class="panel picker" aria-disabled="${playing}"><div class="row between"><div><div class="eyebrow">L'erba alta</div><h2>${need===1?"Scegli il mostro da far uscire":"Scegli "+need+" mostri da far uscire insieme"}</h2></div>
@@ -594,7 +597,7 @@ document.addEventListener("click",e=>{
     case "back": ui.tab="gioco"; write({phase:"attesa",monsters:[]}); break;
     case "reset": ui.confirmReset=true; render(); break;
     case "reset-no": ui.confirmReset=false; render(); break;
-    case "reset-yes": ui.confirmReset=false; ui.msel=[]; replaceAll(fresh()); break;
+    case "reset-yes": ui.confirmReset=false; ui.msel=[]; ui.tab="gioco"; replaceAll(fresh()); toast("Arena azzerata"); break;
     case "unzoom": if(e.target===t||t.classList.contains("close")){ui.zoom=null;ui.bigqr=false;render()} break;
     case "edit": ui.editing=true; render(); break;
     case "leave": teamId=null; LS.set("ps2-team",null); render(); break;
